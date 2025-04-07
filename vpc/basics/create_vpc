@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+
+# create a vpc
+
+
+aws ec2 create-vpc --cidr-block "10.0.0.0/16" --region us-east-2
+aws ec2 create-vpc \
+  --cidr-block "10.2.0.0/16" \
+  --region us-east-1 \
+  --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=VPC}]' \
+  --output json > vpc_output.json
+
+# Extract the VPC ID using jq and save to file
+cat vpc_output.json | jq -r '.Vpc.VpcId' > vpc_id.txt
+
+
+# Store the VPC ID in a variable
+VPC_ID=$(cat vpc_id.txt)
+
+
+# Optional: display the VPC ID
+echo "✅ Created VPC with ID: $VPC_ID"
+
+
+
+
+
+#create an IGW 
+
+
+# attach the IGW to the VPC
+
+
+
+# create two subnets in different AZs: private and public subnets
+
+
+
+# create a route table for the public subnet and associate it with the public subnet
+
+
+# create a route table for the private subnet and associate it with the private subnet
+
+
+# add a route to the private subnet route table to the NAT gateway
+
+
+# add a route to the private subnet route table to the IGW
+
+
+# add a route to the public subnet route table to the IGW
+

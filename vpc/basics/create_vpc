@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-REGION="us-east-1"
+REGION="us-east-2"
 CIDR_BLOCK="10.2.0.0/16"
 VPC_NAME="my_VPC"
+PUBLIC_SUBNET_CIDR="10.2.1.0/24"
+PRIVATE_SUBNET_CIDR="10.2.2.0/24"
 
 # Create VPC
 echo "🔧 Creating VPC..."
@@ -35,3 +37,43 @@ aws ec2 create-tags \
   --tags Key=Name,Value=$VPC_NAME \
   --region $REGION
 echo "✅ Tagged IGW $IGW_ID with Name: $VPC_NAME"
+
+
+#  create two subnets in different AZs: private and public subnets
+
+echo "Creating Public Subnet"
+PUBLIC_SUBNET_ID=$(aws ec2 create-subnet \
+  --vpc-id $VPC_ID \
+  --cidr-block $PUBLIC_SUBNET_CIDR \
+  --availability-zone ${REGION}a \
+  --output json | jq -r '.Subnet.SubnetId')
+echo "✅ Created Public Subnet with ID: $PUBLIC_SUBNET_ID"
+
+echo "Creating Private Subnet"
+PRIVATE_SUBNET_ID=$(aws ec2 create-subnet \
+  --vpc-id $VPC_ID \
+  --cidr-block $PRIVATE_SUBNET_CIDR \
+  --availability-zone ${REGION}b \
+  --output json | jq -r '.Subnet.SubnetId')
+echo "✅ Created Private Subnet with ID: $PRIVATE_SUBNET_ID"
+
+
+# Enable auto-assign public IP on public subnet
+echo "🔧 Enabling auto-assign public IP on Public Subnet"
+aws ec2 modify-subnet-attribute \
+  --subnet-id $PUBLIC_SUBNET_ID \
+  --map-public-ip-on-launch
+echo "✅ Public IP auto-assignment enabled"
+
+# Tag subnets
+echo "🏷️ Tagging Subnets"
+aws ec2 create-tags \
+  --resources $PUBLIC_SUBNET_ID \
+  --tags Key=Name,Value=Public-Subnet \
+  --region $REGION
+
+aws ec2 create-tags \
+  --resources $PRIVATE_SUBNET_ID \
+  --tags Key=Name,Value=Private-Subnet \
+  --region $REGION
+echo "✅ Tagged Public and Private Subnets"

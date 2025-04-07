@@ -1,53 +1,37 @@
 #!/usr/bin/env bash
 
+REGION="us-east-1"
+CIDR_BLOCK="10.2.0.0/16"
+VPC_NAME="my_VPC"
 
-# create a vpc
-
-
-#aws ec2 create-vpc --cidr-block "10.0.0.0/16" --region us-east-2
+# Create VPC
+echo "🔧 Creating VPC..."
 aws ec2 create-vpc \
-  --cidr-block "10.2.0.0/16" \
-  --region us-east-2 \
-  --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=VPC}]' \
+  --cidr-block "$CIDR_BLOCK" \
+  --region $REGION \
+  --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=$VPC_NAME}]" \
   --output json > vpc_output.json
 
-# Extract the VPC ID using jq and save to file
-cat vpc_output.json | jq -r '.Vpc.VpcId' > vpc_id.txt
-
-
-# Store the VPC ID in a variable
-VPC_ID=$(cat vpc_id.txt)
-
-
-# Optional: display the VPC ID
+# Extract VPC ID
+VPC_ID=$(jq -r '.Vpc.VpcId' vpc_output.json)
 echo "✅ Created VPC with ID: $VPC_ID"
 
+echo "🔧 Creating Internet Gateway"
+IGW_ID=$(aws ec2 create-internet-gateway --region $REGION --output json | jq -r '.InternetGateway.InternetGatewayId')
+echo "✅ Created IGW with ID: $IGW_ID"
+
+echo "🔗 Attaching IGW to VPC"
+aws ec2 attach-internet-gateway \
+  --internet-gateway-id $IGW_ID \
+  --vpc-id $VPC_ID \
+  --region $REGION
+echo "✅ IGW $IGW_ID attached to VPC $VPC_ID"
 
 
 
-
-#create an IGW 
-
-
-# attach the IGW to the VPC
-
-
-
-# create two subnets in different AZs: private and public subnets
-
-
-
-# create a route table for the public subnet and associate it with the public subnet
-
-
-# create a route table for the private subnet and associate it with the private subnet
-
-
-# add a route to the private subnet route table to the NAT gateway
-
-
-# add a route to the private subnet route table to the IGW
-
-
-# add a route to the public subnet route table to the IGW
-
+echo "🏷️ Tagging IGW with Name: $VPC_NAME"
+aws ec2 create-tags \
+  --resources $IGW_ID \
+  --tags Key=Name,Value=$VPC_NAME \
+  --region $REGION
+echo "✅ Tagged IGW $IGW_ID with Name: $VPC_NAME"

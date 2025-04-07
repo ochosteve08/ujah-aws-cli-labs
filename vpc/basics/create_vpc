@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 REGION="us-east-2"
-CIDR_BLOCK="10.2.0.0/16"
-VPC_NAME="my_VPC"
-PUBLIC_SUBNET_CIDR="10.2.1.0/24"
-PRIVATE_SUBNET_CIDR="10.2.2.0/24"
+CIDR_BLOCK="10.1.0.0/16"
+VPC_NAME="another_VPC"
+PUBLIC_SUBNET_CIDR="10.1.1.0/24"
+PRIVATE_SUBNET_CIDR="10.1.2.0/24"
 
 # Create VPC
 echo "🔧 Creating VPC..."
@@ -17,6 +17,23 @@ aws ec2 create-vpc \
 # Extract VPC ID
 VPC_ID=$(jq -r '.Vpc.VpcId' vpc_output.json)
 echo "✅ Created VPC with ID: $VPC_ID"
+
+
+# Enable DNS Support (optional but recommended)
+echo "🔧 Enabling DNS Support for VPC"
+aws ec2 modify-vpc-attribute \
+  --vpc-id $VPC_ID \
+  --enable-dns-support "{\"Value\":true}" \
+  --region $REGION
+echo "✅ DNS Support enabled for VPC $VPC_ID"
+
+# Enable DNS Hostnames (main goal)
+echo "🔧 Enabling DNS Hostnames for VPC"
+aws ec2 modify-vpc-attribute \
+  --vpc-id $VPC_ID \
+  --enable-dns-hostnames "{\"Value\":true}" \
+  --region $REGION
+echo "✅ DNS Hostnames enabled for VPC $VPC_ID"
 
 echo "🔧 Creating Internet Gateway"
 IGW_ID=$(aws ec2 create-internet-gateway --region $REGION --output json | jq -r '.InternetGateway.InternetGatewayId')
@@ -77,3 +94,144 @@ aws ec2 create-tags \
   --tags Key=Name,Value=Private-Subnet \
   --region $REGION
 echo "✅ Tagged Public and Private Subnets"
+
+
+
+
+# Create a Route Table for the Public Subnet
+echo "Creating Route Table for Public Subnet"
+PUBLIC_RTB_ID=$(aws ec2 create-route-table \
+  --vpc-id $VPC_ID \
+  --region $REGION \
+  --output json | jq -r '.RouteTable.RouteTableId')
+echo "✅ Created Route Table for Public Subnet with ID: $PUBLIC_RTB_ID"
+
+# Tag the Public Route Table
+aws ec2 create-tags \
+  --resources $PUBLIC_RTB_ID \
+  --tags Key=Name,Value=${VPC_NAME}_Public_RT \
+  --region $REGION
+echo "🏷️ Tagged Public Route Table as ${VPC_NAME}_Public_RT"
+
+# Create a Route Table for the Private Subnet
+echo "Creating Route Table for Private Subnet"
+PRIVATE_RTB_ID=$(aws ec2 create-route-table \
+  --vpc-id $VPC_ID \
+  --region $REGION \
+  --output json | jq -r '.RouteTable.RouteTableId')
+echo "✅ Created Route Table for Private Subnet with ID: $PRIVATE_RTB_ID"
+
+# Tag the Private Route Table
+aws ec2 create-tags \
+  --resources $PRIVATE_RTB_ID \
+  --tags Key=Name,Value=${VPC_NAME}_Private_RT \
+  --region $REGION
+echo "🏷️ Tagged Private Route Table as ${VPC_NAME}_Private_RT"
+
+
+
+
+
+# Create a Route for the Public Subnet Route Table to the IGW
+echo "Creating Route in Public Route Table to the IGW"
+aws ec2 create-route \
+  --route-table-id $PUBLIC_RTB_ID \
+  --destination-cidr-block "0.0.0.0/0" \
+  --gateway-id $IGW_ID \
+  --region $REGION
+echo "✅ Created Route in Public Route Table to the IGW"
+
+
+# Associate the Public Route Table with the Public Subnet
+echo "Associating Public Route Table with Public Subnet"
+aws ec2 associate-route-table \
+  --route-table-id $PUBLIC_RTB_ID \
+  --subnet-id $PUBLIC_SUBNET_ID \
+  --region $REGION
+echo "✅ Associated Public Route Table with Public Subnet"
+
+
+# Create a NAT Gateway in the Public Subnet
+echo "Creating NAT Gateway in Public Subnet"
+EIP_ALLOC_ID=$(aws ec2 allocate-address --domain vpc --region $REGION --output json | jq -r '.AllocationId')
+echo "✅ Allocated Elastic IP with ID: $EIP_ALLOC_ID"
+
+# Tag the Elastic IP
+aws ec2 create-tags \
+  --resources $EIP_ALLOC_ID \
+  --tags Key=Name,Value=${VPC_NAME}_EIP \
+  --region $REGION
+echo "🏷️ Tagged Elastic IP as ${VPC_NAME}_EIP"
+
+NAT_GATEWAY_ID=$(aws ec2 create-nat-gateway \
+  --subnet-id $PUBLIC_SUBNET_ID \
+  --allocation-id $EIP_ALLOC_ID \
+  --region $REGION \
+  --output json | jq -r '.NatGateway.NatGatewayId')
+echo "✅ Created NAT Gateway with ID: $NAT_GATEWAY_ID"
+
+# Tag the NAT Gateway
+aws ec2 create-tags \
+  --resources $NAT_GATEWAY_ID \
+  --tags Key=Name,Value=${VPC_NAME}_NAT_GW \
+  --region $REGION
+echo "🏷️ Tagged NAT Gateway as ${VPC_NAME}_NAT_GW"
+
+
+# Add a route in the Private Route Table to the NAT Gateway
+echo "Creating Route in Private Route Table to NAT Gateway"
+aws ec2 create-route \
+  --route-table-id $PRIVATE_RTB_ID \
+  --destination-cidr-block "0.0.0.0/0" \
+  --nat-gateway-id $NAT_GATEWAY_ID \
+  --region $REGION
+echo "✅ Created Route in Private Route Table to NAT Gateway"
+
+# Associate the Private Route Table with the Private Subnet
+echo "Associating Private Route Table with Private Subnet"
+aws ec2 associate-route-table \
+  --route-table-id $PRIVATE_RTB_ID \
+  --subnet-id $PRIVATE_SUBNET_ID \
+  --region $REGION
+echo "✅ Associated Private Route Table with Private Subnet"
+
+# Done
+echo "✅ VPC setup completed with the following components:"
+echo "- VPC ID: $VPC_ID"
+echo "- Public Subnet ID: $PUBLIC_SUBNET_ID"
+echo "- Private Subnet ID: $PRIVATE_SUBNET_ID"
+echo "- IGW ID: $IGW_ID"
+echo "- NAT Gateway ID: $NAT_GATEWAY_ID"
+echo "- EIP Allocation ID: $EIP_ALLOC_ID"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Step 12: Associate the Private Route Table with the Private Subnet
+echo "Associating Private Route Table with Private Subnet"
+aws ec2 associate-route-table \
+  --route-table-id $PRIVATE_RTB_ID \
+  --subnet-id $PRIVATE_SUBNET_ID \
+  --region $REGION
+echo "✅ Associated Private Route Table with Private Subnet"
+
+# Done
+echo "✅ VPC setup completed with the following components:"
+echo "- VPC ID: $VPC_ID"
+echo "- Public Subnet ID: $PUBLIC_SUBNET_ID"
+echo "- Private Subnet ID: $PRIVATE_SUBNET_ID"
+echo "- IGW ID: $IGW_ID"
+echo "- NAT Gateway ID: $NAT_GATEWAY_ID"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Validate input
+if [ -z "$1" ]; then
+  echo "❌ Usage: $0 <vpc-id> [region]"
+  exit 1
+fi
+
+VPC_ID="$1"
+REGION="${2:-$(aws configure get region)}"  # Use 2nd argument or fallback to default region
+
+# Check if region is set
+if [ -z "$REGION" ]; then
+  echo "❌ No region specified and no default region found in AWS CLI configuration."
+  exit 1
+fi
+
+echo "🧹 Cleaning up VPC: $VPC_ID in region: $REGION"
+
+# Finally delete the VPC
+echo "🔥 Deleting VPC: $VPC_ID"
+aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION"
+
+echo "✅ VPC $VPC_ID deleted in region: $REGION"

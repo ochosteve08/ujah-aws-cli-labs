@@ -4,10 +4,10 @@
 # create a vpc
 
 
-aws ec2 create-vpc --cidr-block "10.0.0.0/16" --region us-east-2
+#aws ec2 create-vpc --cidr-block "10.0.0.0/16" --region us-east-2
 aws ec2 create-vpc \
   --cidr-block "10.2.0.0/16" \
-  --region us-east-1 \
+  --region us-east-2 \
   --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=VPC}]' \
   --output json > vpc_output.json
 

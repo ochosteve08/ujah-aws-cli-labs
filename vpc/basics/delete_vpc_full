@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+# VPC cleanup script
+# Usage: ./delete_vpc.sh <vpc-id> [region]
+
+# Validate input
+if [ -z "$1" ]; then
+  echo "❌ Usage: $0 <vpc-id> [region]"
+  exit 1
+fi
+
+VPC_ID=$1
+REGION=${2:-$(aws configure get region)}  # Use 2nd arg or default region from AWS CLI configuration
+
+# Check if region is set
+if [ -z "$REGION" ]; then
+  echo "❌ No region specified and no default region found in AWS CLI configuration."
+  exit 1
+fi
+
+echo "🧹 Cleaning up VPC: $VPC_ID in region: $REGION"
+
+# Detach and delete Internet Gateways
+for IGW_ID in $(aws ec2 describe-internet-gateways \
+  --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+  --region $REGION \
+  --query "InternetGateways[*].InternetGatewayId" --output text); do
+  
+  echo "🔌 Detaching and deleting IGW: $IGW_ID"
+  aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID --region $REGION
+  aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID --region $REGION
+done
+
+# Delete Subnets
+for SUBNET_ID in $(aws ec2 describe-subnets \
+  --filters "Name=vpc-id,Values=$VPC_ID" \
+  --region $REGION \
+  --query "Subnets[*].SubnetId" --output text); do
+
+  echo "🗑️ Deleting Subnet: $SUBNET_ID"
+  aws ec2 delete-subnet --subnet-id $SUBNET_ID --region $REGION
+done
+
+# Delete custom Route Tables (skip main)
+for RTB_ID in $(aws ec2 describe-route-tables \
+  --filters "Name=vpc-id,Values=$VPC_ID" \
+  --region $REGION \
+  --query "RouteTables[*].RouteTableId" --output text); do
+
+  MAIN_ASSOC=$(aws ec2 describe-route-tables \
+    --route-table-ids $RTB_ID --region $REGION \
+    --query "RouteTables[0].Associations[?Main==\`true\`].RouteTableAssociationId" --output text)
+
+  if [ -z "$MAIN_ASSOC" ]; then
+    echo "🗺️ Deleting custom Route Table: $RTB_ID"
+    aws ec2 delete-route-table --route-table-id $RTB_ID --region $REGION
+  fi
+done
+
+# Delete Network ACLs (skip default)
+for ACL_ID in $(aws ec2 describe-network-acls \
+  --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION \
+  --query "NetworkAcls[*].NetworkAclId" --output text); do
+
+  IS_DEFAULT=$(aws ec2 describe-network-acls --network-acl-ids $ACL_ID --region $REGION \
+    --query "NetworkAcls[0].IsDefault" --output text)
+
+  if [ "$IS_DEFAULT" = "false" ]; then
+    echo "🚫 Deleting NACL: $ACL_ID"
+    aws ec2 delete-network-acl --network-acl-id $ACL_ID --region $REGION
+  fi
+done
+
+# Delete custom Security Groups (skip default)
+for SG_ID in $(aws ec2 describe-security-groups \
+  --filters "Name=vpc-id,Values=$VPC_ID" --region $REGION \
+  --query "SecurityGroups[*].GroupId" --output text); do
+
+  GROUP_NAME=$(aws ec2 describe-security-groups --group-ids $SG_ID --region $REGION \
+    --query "SecurityGroups[0].GroupName" --output text)
+
+  if [ "$GROUP_NAME" != "default" ]; then
+    echo "🔐 Deleting Security Group: $SG_ID"
+    aws ec2 delete-security-group --group-id $SG_ID --region $REGION
+  fi
+done
+
+# Finally delete the VPC
+echo "🔥 Deleting VPC: $VPC_ID"
+aws ec2 delete-vpc --vpc-id $VPC_ID --region $REGION
+
+echo "✅ VPC $VPC_ID and all dependencies deleted."

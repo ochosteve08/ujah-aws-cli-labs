@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+set -e
+
+if [ -z "$1" ]; then
+  echo "❌ Usage: $0 <vpc-id> [region]"
+  exit 1
+fi
+
+VPC_ID="$1"
+REGION="${2:-$(aws configure get region)}"
+
+if [ -z "$REGION" ]; then
+  echo "❌ No region specified and no default region found."
+  exit 1
+fi
+
+echo "🧹 Cleaning up VPC: $VPC_ID in region: $REGION"
+
+# Delete NAT Gateways and collect EIP IDs
+NAT_INFO=$(aws ec2 describe-nat-gateways \
+  --filter Name=vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query 'NatGateways[*].[NatGatewayId,NatGatewayAddresses[0].AllocationId]' \
+  --output text)
+
+declare -a NAT_IDS=()
+declare -a EIP_IDS=()
+
+while read -r NAT_ID EIP_ID; do
+  echo "🗑️ Deleting NAT Gateway: $NAT_ID"
+  aws ec2 delete-nat-gateway --nat-gateway-id "$NAT_ID" --region "$REGION"
+  NAT_IDS+=($NAT_ID)
+  if [ -n "$EIP_ID" ]; then
+    EIP_IDS+=($EIP_ID)
+  fi
+done <<< "$NAT_INFO"
+
+# Wait for NAT GW deletion
+echo "⏳ Waiting for NAT Gateway(s) to be deleted..."
+for id in "${NAT_IDS[@]}"; do
+  while true; do
+    STATUS=$(aws ec2 describe-nat-gateways --nat-gateway-ids "$id" --region "$REGION" --query "NatGateways[0].State" --output text 2>/dev/null || echo "deleted")
+    if [ "$STATUS" == "deleted" ] || [ "$STATUS" == "failed" ]; then
+      echo "✅ NAT Gateway $id deleted."
+      break
+    fi
+    echo "⌛ Still deleting NAT Gateway $id... ($STATUS)"
+    sleep 10
+  done
+done
+
+# Release EIPs
+for eip in "${EIP_IDS[@]}"; do
+  echo "🗑️ Releasing Elastic IP: $eip"
+  aws ec2 release-address --allocation-id "$eip" --region "$REGION" || echo "⚠️ Could not release $eip"
+done
+
+# Delete subnets
+SUBNET_IDS=$(aws ec2 describe-subnets \
+  --filters Name=vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query 'Subnets[*].SubnetId' \
+  --output text)
+
+for subnet in $SUBNET_IDS; do
+  echo "🗑️ Deleting Subnet: $subnet"
+  aws ec2 delete-subnet --subnet-id "$subnet" --region "$REGION"
+done
+
+# Delete all route tables (including main)
+RTB_IDS=$(aws ec2 describe-route-tables \
+  --filters Name=vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query 'RouteTables[*].RouteTableId' \
+  --output text)
+
+for rtb in $RTB_IDS; do
+  echo "🗑️ Deleting Route Table: $rtb"
+  aws ec2 delete-route-table --route-table-id "$rtb" --region "$REGION" || echo "⚠️ Could not delete main route table $rtb (skip)"
+done
+
+# Delete custom NACLs
+NACL_IDS=$(aws ec2 describe-network-acls \
+  --filters Name=vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query 'NetworkAcls[?IsDefault==`false`].NetworkAclId' \
+  --output text)
+
+for nacl in $NACL_IDS; do
+  echo "🗑️ Deleting NACL: $nacl"
+  aws ec2 delete-network-acl --network-acl-id "$nacl" --region "$REGION"
+done
+
+# Delete non-default Security Groups
+SG_IDS=$(aws ec2 describe-security-groups \
+  --filters Name=vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query "SecurityGroups[?GroupName!='default'].GroupId" \
+  --output text)
+
+for sg in $SG_IDS; do
+  echo "🗑️ Deleting Security Group: $sg"
+  aws ec2 delete-security-group --group-id "$sg" --region "$REGION"
+done
+
+# Detach and delete internet gateways
+IGW_IDS=$(aws ec2 describe-internet-gateways \
+  --filters Name=attachment.vpc-id,Values=$VPC_ID \
+  --region $REGION \
+  --query 'InternetGateways[*].InternetGatewayId' \
+  --output text)
+
+for igw in $IGW_IDS; do
+  echo "🔌 Detaching and deleting IGW: $igw"
+  aws ec2 detach-internet-gateway --internet-gateway-id "$igw" --vpc-id "$VPC_ID" --region "$REGION"
+  aws ec2 delete-internet-gateway --internet-gateway-id "$igw" --region "$REGION"
+done
+
+# Finally delete VPC
+echo "🔥 Deleting VPC: $VPC_ID"
+aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION"
+echo "✅ VPC $VPC_ID deleted in region: $REGION"

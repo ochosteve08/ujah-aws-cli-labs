@@ -5,7 +5,7 @@
         "Ipv6CidrBlockAssociationSet": [],
         "CidrBlockAssociationSet": [
             {
-                "AssociationId": "vpc-cidr-assoc-0c6683971d77375cc",
+                "AssociationId": "vpc-cidr-assoc-0f7a44b628c5c2a22",
                 "CidrBlock": "10.1.0.0/16",
                 "CidrBlockState": {
                     "State": "associated"
@@ -16,10 +16,10 @@
         "Tags": [
             {
                 "Key": "Name",
-                "Value": "another_VPC"
+                "Value": "my_VPC"
             }
         ],
-        "VpcId": "vpc-0432003ac362ee710",
+        "VpcId": "vpc-0aa2dcad69f989a2b",
         "State": "pending",
         "CidrBlock": "10.1.0.0/16",
         "DhcpOptionsId": "dopt-015991d509b95f66c"

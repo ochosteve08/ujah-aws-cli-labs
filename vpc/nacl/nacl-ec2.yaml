@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with SSM access and unrestricted Security Group (no public IP)
+
+Resources:
+  MyInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic from anywhere (insecure - for lab/demo purposes only)
+      VpcId: vpc-0a55ce42c45c2c211
+      SecurityGroupIngress:
+        - IpProtocol: -1  # -1 means all protocols
+          CidrIp: 0.0.0.0/0
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  MyInstanceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref MyInstanceIAMRole
+      Path: /
+
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-04f167a56786e4b09
+      KeyName: testkey
+      IamInstanceProfile: !Ref MyInstanceProfile
+      SubnetId: subnet-09c82d8f0c19e14c1
+      SecurityGroupIds:
+        - !Ref MyInstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: MySSMInstance

@@ -17,7 +17,11 @@ fi
 
 echo "🧹 Cleaning up VPC: $VPC_ID in region: $REGION"
 
-# Finally delete the VPC
+#detach the IGW
+
+#delete the IGW
+
+# delete the VPC
 echo "🔥 Deleting VPC: $VPC_ID"
 aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION"
 

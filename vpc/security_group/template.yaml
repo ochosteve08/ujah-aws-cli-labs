@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description:   CloudFormation template to create a Security Group allowing basic web (HTTP/HTTPS), SSH, and full egress traffic while also deploying an EC2 instance with public IP, SSM access, and Apache installed.
+
+Parameters:
+
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where resources will be deployed
+    Default: vpc-0177f65b6816ec8a6
+
+  SubnetId: 
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the EC2 instance
+    Default: subnet-07f2fd5507eabdde2
+
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for EC2 instance
+    Default: ami-0100e595e1cc1ff7f  # Amazon Linux 2 (us-east-2)
+
+Resources:
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic (for lab/demo purposes only)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  InstanceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceIAMRole
+      Path: /
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref ImageId
+      KeyName: testkey  # Replace with your actual key pair name
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref SubnetId
+          GroupSet:
+            - !Ref InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: MyApacheSSMInstance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl enable httpd
+          systemctl start httpd
+          echo "<h1>Hello from EC2 with Apache via CloudFormation</h1>" > /var/www/html/index.html

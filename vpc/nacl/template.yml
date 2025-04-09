@@ -28,4 +28,7 @@ Resources:
           DeviceIndex: 0
           SubnetId: subnet-09c82d8f0c19e14c1
           GroupSet:
-            - !Ref MyInstanceSecurityGroup
+            -!Ref MyInstanceSecurityGroup
+
+    
+           

@@ -85,3 +85,7 @@ aws cloudformation create-stack \
 * Assigns a **public IP** for external reachability
 * Creates an **Application Load Balancer (ALB)** to serve HTTP traffic
 * Writes a simple HTML homepage to `/var/www/html/index.html`
+
+---
+
+Let me know if you'd like to split this into folders (e.g. `ec2/`, `nacl/`, `ssm-alb/`) or version your templates in the readme.

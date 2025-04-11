@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VPC Peering between 2 VPCs with public subnets, IGWs, route tables, and EC2s
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: testkey
+    Description: Name of an existing EC2 KeyPair to SSH
+
+Resources:
+
+  ########### VPCs ###########
+
+  RequesterVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: RequesterVPC
+
+  AccepterVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: AccepterVPC
+
+  ########### Subnets ###########
+
+  RequesterSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref RequesterVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  AccepterSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AccepterVPC
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  ########### Internet Gateways ###########
+
+  RequesterIGW:
+    Type: AWS::EC2::InternetGateway
+
+  AccepterIGW:
+    Type: AWS::EC2::InternetGateway
+
+  AttachRequesterIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref RequesterIGW
+      VpcId: !Ref RequesterVPC
+
+  AttachAccepterIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref AccepterIGW
+      VpcId: !Ref AccepterVPC
+
+  ########### Route Tables ###########
+
+  RequesterRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref RequesterVPC
+
+  AccepterRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AccepterVPC
+
+  RequesterRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RequesterRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref RequesterIGW
+
+  AccepterRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AccepterRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AccepterIGW
+
+  RequesterAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref RequesterSubnet
+      RouteTableId: !Ref RequesterRouteTable
+
+  AccepterAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AccepterSubnet
+      RouteTableId: !Ref AccepterRouteTable
+
+  ########### Peering ###########
+
+  VPCPeering:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref RequesterVPC
+      PeerVpcId: !Ref AccepterVPC
+      Tags:
+        - Key: Name
+          Value: VPCPeeringRequesterToAccepter
+
+  PeeringRouteReqToAcc:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RequesterRouteTable
+      DestinationCidrBlock: 10.1.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeering
+
+  PeeringRouteAccToReq:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AccepterRouteTable
+      DestinationCidrBlock: 10.0.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeering
+
+  ########### Security Groups ###########
+
+  RequesterEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and ICMP from Accepter VPC
+      VpcId: !Ref RequesterVPC
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.1.0.0/16
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.0.0/16
+
+  AccepterEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and ICMP from Requester VPC
+      VpcId: !Ref AccepterVPC
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16
+
+  ########### EC2 Instances ###########
+
+  RequesterEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      SubnetId: !Ref RequesterSubnet
+      SecurityGroupIds:
+        - !Ref RequesterEC2SecurityGroup
+      ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+      Tags:
+        - Key: Name
+          Value: EC2-Requester
+
+  AccepterEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      SubnetId: !Ref AccepterSubnet
+      SecurityGroupIds:
+        - !Ref AccepterEC2SecurityGroup
+      ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+      Tags:
+        - Key: Name
+          Value: EC2-Accepter
+
+Outputs:
+  RequesterEC2PublicIP:
+    Value: !GetAtt RequesterEC2.PublicIp
+    Description: Public IP of the EC2 in RequesterVPC
+
+  AccepterEC2PublicIP:
+    Value: !GetAtt AccepterEC2.PublicIp
+    Description: Public IP of the EC2 in AccepterVPC
+
+  PeeringConnectionId:
+    Value: !Ref VPCPeering
+    Description: VPC Peering Connection ID

@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy EC2 instance in VPC-B with SSM access
+
+Parameters:
+  PeerBVPCSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID in VPC-B (11.0.0.0/16)
+
+Resources:
+  InstanceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceIAMRole
+      Path: /
+
+  PeerBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from VPC-A CIDR (10.0.0.0/16)
+      VpcId: vpc-0cdd4fc9f443a7e7f # VPC-B
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 10.0.0.0/16
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  PeerBInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0100e595e1cc1ff7f
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref PeerBVPCSubnetId
+          AssociatePublicIpAddress: true
+          GroupSet:
+            - !Ref PeerBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: PeerB-SSM-Instance

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: VPC Peering between 2 VPCs with public subnets, IGWs, route tables, and EC2s
+Description: VPC Peering between 2 VPCs with private subnets and EC2 instances
 
 Parameters:
   KeyName:
@@ -39,7 +39,7 @@ Resources:
       VpcId: !Ref RequesterVPC
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: true
+      MapPublicIpOnLaunch: false   # Private subnet
 
   AccepterSubnet:
     Type: AWS::EC2::Subnet
@@ -47,27 +47,7 @@ Resources:
       VpcId: !Ref AccepterVPC
       CidrBlock: 10.1.1.0/24
       AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: true
-
-  ########### Internet Gateways ###########
-
-  RequesterIGW:
-    Type: AWS::EC2::InternetGateway
-
-  AccepterIGW:
-    Type: AWS::EC2::InternetGateway
-
-  AttachRequesterIGW:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      InternetGatewayId: !Ref RequesterIGW
-      VpcId: !Ref RequesterVPC
-
-  AttachAccepterIGW:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      InternetGatewayId: !Ref AccepterIGW
-      VpcId: !Ref AccepterVPC
+      MapPublicIpOnLaunch: false   # Private subnet
 
   ########### Route Tables ###########
 
@@ -81,19 +61,19 @@ Resources:
     Properties:
       VpcId: !Ref AccepterVPC
 
-  RequesterRouteToInternet:
+  RequesterRouteToPeering:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref RequesterRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref RequesterIGW
+      DestinationCidrBlock: 10.1.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeering
 
-  AccepterRouteToInternet:
+  AccepterRouteToPeering:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref AccepterRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref AccepterIGW
+      DestinationCidrBlock: 10.0.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeering
 
   RequesterAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -117,20 +97,6 @@ Resources:
       Tags:
         - Key: Name
           Value: VPCPeeringRequesterToAccepter
-
-  PeeringRouteReqToAcc:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref RequesterRouteTable
-      DestinationCidrBlock: 10.1.0.0/16
-      VpcPeeringConnectionId: !Ref VPCPeering
-
-  PeeringRouteAccToReq:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref AccepterRouteTable
-      DestinationCidrBlock: 10.0.0.0/16
-      VpcPeeringConnectionId: !Ref VPCPeering
 
   ########### Security Groups ###########
 
@@ -193,13 +159,13 @@ Resources:
           Value: EC2-Accepter
 
 Outputs:
-  RequesterEC2PublicIP:
-    Value: !GetAtt RequesterEC2.PublicIp
-    Description: Public IP of the EC2 in RequesterVPC
+  RequesterEC2PrivateIP:
+    Value: !GetAtt RequesterEC2.PrivateIp
+    Description: Private IP of the EC2 in RequesterVPC
 
-  AccepterEC2PublicIP:
-    Value: !GetAtt AccepterEC2.PublicIp
-    Description: Public IP of the EC2 in AccepterVPC
+  AccepterEC2PrivateIP:
+    Value: !GetAtt AccepterEC2.PrivateIp
+    Description: Private IP of the EC2 in AccepterVPC
 
   PeeringConnectionId:
     Value: !Ref VPCPeering

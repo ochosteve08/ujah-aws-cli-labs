@@ -1,110 +1,153 @@
 
 
-### 🛠️ CloudFormation **Stack Operations**
+# 🛠️ AWS CloudFormation Stack Operations for VPC Peering with EC2
 
-#### 📦 Create Stack
+This guide provides step-by-step instructions and scripts to manage CloudFormation stacks and VPC peering connections using AWS CLI.
 
-```
+---
+
+## 📦 CloudFormation Stack Commands
+
+### ✅ Create Stack
+
+```bash
 aws cloudformation create-stack \
   --stack-name VPCPeeringWithSubnets \
   --template-body file://vpc-peering-full.yml \
   --capabilities CAPABILITY_NAMED_IAM
-
 ```
 
+---
 
+### 📄 Describe Stack
 
-📄 Describe Stack
-
-```
-
-
+```bash
 aws cloudformation describe-stacks \
-  --stack-name VPCPeeringWithEC2s
-
+  --stack-name VPCPeeringWithSubnets
 ```
 
-```
-aws cloudformation describe-stack-events --stack-name VPCPeeringWithSubnets
-
-```
-
-
-❌ Delete Stack
-
-
-```
-aws cloudformation delete-stack --stack-name VPCPeeringWithSubnets
-
+```bash
+aws cloudformation describe-stack-events \
+  --stack-name VPCPeeringWithSubnets
 ```
 
+---
 
+### ❌ Delete Stack
+
+```bash
+aws cloudformation delete-stack \
+  --stack-name VPCPeeringWithSubnets
 ```
-chmod u+x vpc-peering-script.sh
+
+---
+
+## 🔧 Run Automation Scripts
+
+Make scripts executable and run them:
+
+```bash
+chmod +x vpc-peering-script.sh
 ./vpc-peering-script.sh
-
 ```
 
-
-
-```
+```bash
 chmod +x vpc-peering-teardown.sh
 ./vpc-peering-teardown.sh
-
 ```
 
+---
 
+## 🖥️ AWS Console/CLI Manual Operations
 
+### Step 1: Create Two VPCs (Requester and Accepter)
 
-🛠️ AWS Console **Operations**
+---
 
-* create 2 vpc
-* ```
-  aws ec2 create-vpc-peering-connection \
-      --vpc-id vpc-0e8c1d640922215c1 \
-      --peer-vpc-id vpc-0cdd4fc9f443a7e7f \
-      --peer-region us-east-2 \
-      --tag-specifications "ResourceType=vpc-peering-connection,Tags=[{Key=Name,Value=Requester-to-Accepter}]"
+### Step 2: Create VPC Peering Connection
 
-  ```
-* Confirm the Peering Request
-
-Check the status of the peering connection using the following command:
-
-```
-aws ec2 describe-vpc-peering-connections --query 'VpcPeeringConnections[*].{ID:VpcPeeringConnectionId,Status:Status.Code}'
-
+```bash
+aws ec2 create-vpc-peering-connection \
+  --vpc-id vpc-0e8c1d640922215c1 \
+  --peer-vpc-id vpc-0cdd4fc9f443a7e7f \
+  --peer-region us-east-2 \
+  --tag-specifications "ResourceType=vpc-peering-connection,Tags=[{Key=Name,Value=Requester-to-Accepter}]"
 ```
 
-* Accept the VPC Peering Connection
+---
 
-Once the peering request is initiated, it needs to be accepted by the accepter VPC. You can accept it via the command:
+### Step 3: Confirm Peering Request
 
-```
-aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id pcx-0b57982e5fa88d17c
-
-```
-
-
-* Update Route Tables
-
-Once the VPC peering connection is established, you need to update the route tables in both VPCs to allow traffic to route through the peering connection.
-
-* For  **Requester VPC** , add a route to the Accepter VPC's CIDR block.
-* For  **Accepter VPC** , add a route to the Requester VPC's CIDR block.
-
-```
-aws ec2 create-route --route-table-id <Requester-RouteTable-ID> \
-    --destination-cidr-block <Accepter-VPC-CIDR> \
-    --vpc-peering-connection-id <Peering-Connection-ID>
-
+```bash
+aws ec2 describe-vpc-peering-connections \
+  --query 'VpcPeeringConnections[*].{ID:VpcPeeringConnectionId,Status:Status.Code}'
 ```
 
+---
 
+### Step 4: Accept VPC Peering Connection
 
+```bash
+aws ec2 accept-vpc-peering-connection \
+  --vpc-peering-connection-id pcx-0b57982e5fa88d17c
 ```
-aws ec2 create-route --route-table-id <Accepter-RouteTable-ID> \
-    --destination-cidr-block <Requester-VPC-CIDR> \
-    --vpc-peering-connection-id <Peering-Connection-ID>
 
+---
+
+### Step 5: Update Route Tables
+
+#### For  **Requester VPC** :
+
+```bash
+aws ec2 create-route \
+  --route-table-id <Requester-RouteTable-ID> \
+  --destination-cidr-block <Accepter-VPC-CIDR> \
+  --vpc-peering-connection-id <Peering-Connection-ID>
 ```
+
+#### For  **Accepter VPC** :
+
+```bash
+aws ec2 create-route \
+  --route-table-id <Accepter-RouteTable-ID> \
+  --destination-cidr-block <Requester-VPC-CIDR> \
+  --vpc-peering-connection-id <Peering-Connection-ID>
+```
+
+---
+
+## 📦 Deploy EC2 Instances via CloudFormation
+
+### Deploy EC2 in VPC A
+
+```bash
+aws cloudformation create-stack \
+  --stack-name VPC-A-EC2 \
+  --template-body file://vpc-a-ec2.yaml \
+  --parameters ParameterKey=PeerAVPCSubnetId,ParameterValue=subnet-03801f13a4fe332a1 \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+### Update EC2 Stack in VPC A
+
+```bash
+aws cloudformation update-stack \
+  --stack-name VPC-A-EC2 \
+  --template-body file://vpc-a-ec2.yaml \
+  --parameters ParameterKey=PeerAVPCSubnetId,ParameterValue=subnet-03801f13a4fe332a1 \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+---
+
+### Deploy EC2 in VPC B
+
+```bash
+aws cloudformation create-stack \
+  --stack-name VPC-B-EC2 \
+  --template-body file://vpc-b-ec2.yaml \
+  --parameters ParameterKey=PeerBVPCSubnetId,ParameterValue=subnet-0fbdacb66ac33379f \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+---

@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Creates an IAM User named 'engineer' with ViewOnlyAccess, 
+  inline S3 ListBucket and EC2 full access permissions, and console login enabled.
+
+Parameters:
+  InitialPassword:
+    Description: The initial password for the IAM user (must be changed on first login).
+    Type: String
+    NoEcho: true
+    MinLength: 8
+
+Resources:
+  EngineerIAMUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: engineer
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+      Policies:
+        - PolicyName: InlineS3ListPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "s3:ListBucket"
+                Resource: "*"
+        - PolicyName: EngineerEC2AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "ec2:*"
+                Resource: "*"
+      LoginProfile:
+        Password: !Ref InitialPassword
+        PasswordResetRequired: true
+      Tags:
+        - Key: Environment
+          Value: Production

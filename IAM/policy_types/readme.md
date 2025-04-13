@@ -1,12 +1,12 @@
 
 
----
-
 ### 🛠️ **CloudFormation & IAM CLI Operations for IAM User**
+
+---
 
 #### 📦 Create Stack (No Parameters)
 
-Deploys the CloudFormation stack to create the IAM user when no parameter (like `InitialPassword`) is defined in the template.
+Deploys the CloudFormation stack to create the IAM user when the template does **not** require parameters (e.g., no `InitialPassword` in `LoginProfile`).
 
 ```bash
 aws cloudformation create-stack \
@@ -15,9 +15,11 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_NAMED_IAM
 ```
 
+---
+
 #### 🔄 Update Stack (With Parameters)
 
-Updates an existing IAM user stack where the template expects a parameter (e.g., `InitialPassword` for the `LoginProfile`).
+Updates the IAM user stack where the template expects a parameter (e.g., `InitialPassword` used in `LoginProfile`).
 
 ```bash
 aws cloudformation update-stack \
@@ -27,9 +29,11 @@ aws cloudformation update-stack \
   --capabilities CAPABILITY_NAMED_IAM
 ```
 
+---
+
 #### 🔍 Describe Stack
 
-Displays the current state and outputs of the deployed stack.
+Retrieves details about the stack including status and outputs.
 
 ```bash
 aws cloudformation describe-stacks \
@@ -38,9 +42,33 @@ aws cloudformation describe-stacks \
 
 ---
 
-### 🔐 **Attach Inline Policy to IAM User**
+#### 🔐 Attach IAM Managed Policy
 
-Attaches an inline IAM policy to the user `engineer`, granting access to a specific S3 bucket.
+Attaches a **managed policy** (e.g., `ViewOnlyAccess`) to the IAM user.
+
+```bash
+aws iam attach-user-policy \
+  --user-name engineer \
+  --policy-arn arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+```
+
+---
+
+#### 🔓 Detach IAM Managed Policy
+
+Detaches a **managed policy** from the IAM user.
+
+```bash
+aws iam detach-user-policy \
+  --user-name engineer \
+  --policy-arn arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+```
+
+---
+
+#### 📄 Attach Inline Policy (Custom)
+
+Attaches a **custom inline policy** from a local file (e.g., `s3-access-policy.json`).
 
 ```bash
 aws iam put-user-policy \
@@ -51,7 +79,7 @@ aws iam put-user-policy \
 
 ---
 
-### ❌ **Detach/Delete Inline Policy from IAM User**
+### 🧹 **Detach/Delete Inline Policy from IAM User**
 
 Removes the attached inline policy from the user `engineer`.
 
@@ -63,9 +91,9 @@ aws iam delete-user-policy \
 
 ---
 
-### 🗑️ **Delete CloudFormation Stack**
+#### ❌ Delete Stack
 
-Deletes the entire stack and its resources (e.g., the IAM user).
+Deletes the CloudFormation stack and all its resources.
 
 ```bash
 aws cloudformation delete-stack \

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+
+echo "== deploy aws ec2 autoscaling stack"
+
+STACK_NAME="ec2-autoscaling-stack"
+
+
+
+aws cloudformation create-stack \
+  --stack-name "ec2-autoscaling" \
+  --template-body file://asg-ec2.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  

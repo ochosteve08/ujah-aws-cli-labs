@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "== Deploying AWS EC2 Auto Scaling stack =="
+
+aws cloudformation deploy \
+  --template-file asg-ec2.yaml \
+  --stack-name ec2-autoscaling \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    VpcId=vpc-0a55ce42c45c2c211 \
+    SubnetIds=subnet-09c82d8f0c19e14c1

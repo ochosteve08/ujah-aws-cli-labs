@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "== Deleting AWS EC2 Auto Scaling stack =="
+
+STACK_NAME="ec2-autoscaling"
+
+aws cloudformation delete-stack \
+  --stack-name "$STACK_NAME"

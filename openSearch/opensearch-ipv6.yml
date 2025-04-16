@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Amazon OpenSearch Service domain with IPv6-enabled VPC access
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: ID of the existing VPC (IPv6 enabled)
+  SubnetId:
+    Type: String
+    Description: Subnet ID for OpenSearch (with /64 IPv6 block)
+  Ipv6CidrBlock:
+    Type: String
+    Description: IPv6 /64 block for the subnet (e.g., 2600:1f16:e43:8b00::/64)
+
+Resources:
+  OpenSearchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTPS access to OpenSearch from IPv6 subnet
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: !Ref Ipv6CidrBlock
+      Tags:
+        - Key: Name
+          Value: OpenSearch-SG
+
+  OpenSearchServiceRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Properties:
+      AWSServiceName: opensearchservice.amazonaws.com
+      Description: Role required by Amazon OpenSearch to manage resources
+
+  OpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: explore-opensearch
+      EngineVersion: OpenSearch_2.11
+      ClusterConfig:
+        InstanceCount: 1
+        InstanceType: t3.small.search
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+      VPCOptions:
+        SubnetIds:
+          - !Ref SubnetId
+        SecurityGroupIds:
+          - !Ref OpenSearchSecurityGroup
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "es:*"
+            Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/explore-opensearch/*
+
+Outputs:
+  OpenSearchEndpoint:
+    Description: OpenSearch HTTPS endpoint
+    Value: !GetAtt OpenSearchDomain.Endpoint

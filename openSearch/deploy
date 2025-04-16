@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -euo pipefail
+
+echo "== Deploying Amazon OpenSearch IPv6-enabled stack =="
+
+# Configurable variables
+STACK_NAME="opensearch-ipv6-demo"
+TEMPLATE_FILE="opensearch-ipv6.yaml"
+VPC_ID="vpc-0a55ce42c45c2c211"
+SUBNET_ID="subnet-09c82d8f0c19e14c1"
+IPV6_CIDR_BLOCK="2600:1f16:e43:8b00::/64"
+
+# Deploy CloudFormation stack
+aws cloudformation deploy \
+  --template-file "$TEMPLATE_FILE" \
+  --stack-name "$STACK_NAME" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    VpcId="$VPC_ID" \
+    SubnetId="$SUBNET_ID" \
+    Ipv6CidrBlock="$IPV6_CIDR_BLOCK"
+
+echo "✅ Deployment complete. Stack: $STACK_NAME"

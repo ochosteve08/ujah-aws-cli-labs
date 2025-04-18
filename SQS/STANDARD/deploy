@@ -1,0 +1,16 @@
+
+#!/bin/bash
+
+
+echo "== deploy aws sqs"
+
+STACK_NAME="sqs-stack"
+
+
+
+
+
+aws cloudformation create-stack \
+  --stack-name $STACK_NAME \
+  --template-body file://template.yaml \
+  --capabilities CAPABILITY_NAMED_IAM

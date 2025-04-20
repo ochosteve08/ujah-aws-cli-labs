@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda Function Example with SAM
+
+# Define global properties for Lambda functions
+Globals:
+  Function:
+    Timeout: 5  # Timeout in seconds
+
+Resources:
+  MyLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler   # Lambda function entry point (index.js file)
+      Runtime: nodejs18.x      # Node.js runtime
+      CodeUri: ./src           # Path to your Lambda function code
+      MemorySize: 128          # Memory allocation for the Lambda function
+      Environment:
+        Variables:
+          MY_ENV_VAR: "value"  # Example environment variable
+      Role:
+        Fn::GetAtt: [MyLambdaExecutionRole, Arn] # IAM role for Lambda
+
+  MyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+      Policies:
+        - PolicyName: "LambdaExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "logs:*"
+                  - "s3:*"  # Add other services your Lambda will interact with
+                Effect: "Allow"
+                Resource: "*"
+
+Outputs:
+  LambdaFunctionName:
+    Description: "Lambda Function Name"
+    Value: !Ref MyLambdaFunction

@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda Function Example with SAM
+Globals:
+  Function:
+    Timeout: 5
+Resources:
+  MyLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs18.x
+      CodeUri: MyLambdaFunction
+      MemorySize: 128
+      Environment:
+        Variables:
+          MY_ENV_VAR: value
+      Role:
+        Fn::GetAtt:
+        - MyLambdaExecutionRole
+        - Arn
+    Metadata:
+      SamResourceId: MyLambdaFunction
+  MyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+      Policies:
+      - PolicyName: LambdaExecutionPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - logs:*
+            - s3:*
+            Effect: Allow
+            Resource: '*'
+Outputs:
+  LambdaFunctionName:
+    Description: Lambda Function Name
+    Value:
+      Ref: MyLambdaFunction

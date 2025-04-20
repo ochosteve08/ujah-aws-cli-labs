@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Variables
+FUNCTION_NAME="myBasicLambda"
+ROLE_NAME="lambda-basic-execution-roles"
+ZIP_FILE="lambda_function.zip"
+PY_FILE="lambda_function.py"  # Correct filename
+RUNTIME="python3.12"
+HANDLER="lambda_function.lambda_handler"
+
+# Step 1: Create trust policy
+cat > trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Step 2: Create the IAM Role
+echo "Creating IAM role..."
+aws iam create-role \
+  --role-name $ROLE_NAME \
+  --assume-role-policy-document file://trust-policy.json 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Failed to create IAM role. It may already exist."
+else
+  echo "IAM role created successfully."
+fi
+
+# Step 3: Attach basic execution policy
+echo "Attaching basic execution policy to the IAM role..."
+aws iam attach-role-policy \
+  --role-name $ROLE_NAME \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+if [ $? -ne 0 ]; then
+  echo "Failed to attach policy."
+else
+  echo "Policy attached successfully."
+fi
+
+echo "Waiting for IAM role to propagate..."
+sleep 20  # Allow time for role propagation
+
+# Step 4: Check if lambda_function.py exists
+if [ ! -f "$PY_FILE" ]; then
+  echo "Error: Python file $PY_FILE not found!"
+  exit 1
+fi
+
+# Step 5: Zip the Lambda function using PowerShell (for Git Bash/Windows)
+echo "Zipping the Lambda function..."
+powershell.exe -Command "Compress-Archive -Path $PY_FILE -DestinationPath $ZIP_FILE -Force"
+if [ $? -ne 0 ]; then
+  echo "Failed to zip the Lambda function."
+  exit 1
+else
+  echo "Lambda function zipped successfully."
+fi
+
+# Step 6: Get the Role ARN
+ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text)
+if [ $? -ne 0 ]; then
+  echo "Failed to retrieve the IAM role ARN."
+  exit 1
+else
+  echo "Role ARN retrieved: $ROLE_ARN"
+fi
+
+# Step 7: Create Lambda Function
+echo "Creating Lambda function..."
+aws lambda create-function \
+  --function-name $FUNCTION_NAME \
+  --runtime $RUNTIME \
+  --role $ROLE_ARN \
+  --handler $HANDLER \
+  --zip-file fileb://$ZIP_FILE \
+  --timeout 15 \
+  --memory-size 128
+if [ $? -ne 0 ]; then
+  echo "Failed to create Lambda function."
+  exit 1
+else
+  echo "Lambda function created successfully."
+fi
+
+# Step 8: Invoke the function to test
+echo "Invoking Lambda function..."
+aws lambda invoke \
+  --function-name $FUNCTION_NAME \
+  response.json
+if [ $? -ne 0 ]; then
+  echo "Failed to invoke Lambda function."
+  exit 1
+else
+  echo "Function invoked. Response saved in response.json"
+fi

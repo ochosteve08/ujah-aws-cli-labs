@@ -1,0 +1,27 @@
+#!/bin/bash
+
+
+
+# aws lambda invoke --function-name sam-app-MyLambdaFunction-CKocIb7Ky6Rw --payload "eyJuYW1lIjoiQWxpY2UiLCJhZ2UiOjMwfQ==" response.json
+
+
+# Define the Lambda function name
+FUNCTION_NAME="sam-app-MyLambdaFunction-CKocIb7Ky6Rw"
+
+# Define the payload file
+PAYLOAD_FILE="payload.json"
+
+# Define the output file
+RESPONSE_FILE="response.json"
+
+# Invoke the Lambda function
+aws lambda invoke \
+  --function-name "$FUNCTION_NAME" \
+  --cli-binary-format raw-in-base64-out \
+  --payload "file://$PAYLOAD_FILE" \
+  "$RESPONSE_FILE"
+
+# Output the response
+echo -e "\nLambda response written to $RESPONSE_FILE:"
+cat "$RESPONSE_FILE"
+echo
